@@ -1,0 +1,6 @@
+[submodule "rive-cpp"]
+	path = rive-cpp
+	url = https://github.com/rive-app/rive-cpp.git
+[submodule "subprojects/plutovg"]
+	path = subprojects/plutovg
+	url = https://github.com/sammycage/plutovg.git
