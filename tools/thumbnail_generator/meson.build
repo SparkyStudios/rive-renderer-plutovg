@@ -19,6 +19,6 @@ source_files = [
 executable('thumbnail_generator',
     source_files,
     include_directories : headers,
-    dependencies : [rive_dep, plutovg_dep, plutonriver_dep],
-    link_with: plutonriver_lib
+    dependencies : [rive_dep, plutovg_dep, plutonriver_lib_static_dep],
+    link_with: plutonriver_lib_static
 )

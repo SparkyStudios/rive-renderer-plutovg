@@ -40,7 +40,7 @@ plutonriver_dep = declare_dependency(
     dependencies : plutovg_dep
 )
 
-plutonriver_lib = library(
+plutonriver_lib_shared = library(
     'plutonriver',
     include_directories : headers,
     version             : meson.project_version(),
@@ -50,15 +50,29 @@ plutonriver_lib = library(
     override_options    : override_options
 )
 
-plutonriver_lib_dep = declare_dependency(
+plutonriver_lib_static = static_library(
+    'plutonriver',
     include_directories : headers,
-    link_with           : plutonriver_lib
+    dependencies        : [rive_dep, plutovg_dep, plutonriver_dep],
+    install             : true,
+    cpp_args            : compiler_flags,
+    override_options    : override_options
+)
+
+plutonriver_lib_shared_dep = declare_dependency(
+    include_directories : headers,
+    link_with           : plutonriver_lib_shared
+)
+
+plutonriver_lib_static_dep = declare_dependency(
+    include_directories : headers,
+    link_with           : plutonriver_lib_static
 )
 
 pkg_mod = import('pkgconfig')
 
 pkg_mod.generate(
-    libraries    : plutonriver_lib,
+    libraries    : [plutonriver_lib_shared, plutonriver_lib_static],
     version      : meson.project_version(),
     name         : 'libplutonriver',
     filebase     : 'plutonriver',
