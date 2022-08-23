@@ -25,6 +25,8 @@
 #define STBI_NO_STDIO
 #include <stb_image.h>
 
+#include <stb_image_write.h>
+
 using namespace rive;
 
 class PlutoVG_RenderPath : public RenderPath
@@ -90,14 +92,13 @@ class PlutoVG_RenderImage : public RenderImage
 {
 public:
   PlutoVG_RenderImage(plutovg_surface_t* surface);
-  PlutoVG_RenderImage(plutovg_texture_t* texture)
-    : m_texture(texture)
-  {
-  }
+  PlutoVG_RenderImage(plutovg_texture_t* texture);
 
   ~PlutoVG_RenderImage() override
   {
     plutovg_texture_destroy(m_texture);
+
+    free(plutovg_surface_get_data(m_surface));
     plutovg_surface_destroy(m_surface);
   }
 
@@ -207,11 +208,22 @@ PlutoVG_RenderImage::PlutoVG_RenderImage(plutovg_surface_t* surface)
   : m_texture(plutovg_texture_create(surface))
   , m_surface(surface)
 {
+  m_Width = plutovg_surface_get_width(m_surface);
+  m_Height = plutovg_surface_get_height(m_surface);
+}
+
+PlutoVG_RenderImage::PlutoVG_RenderImage(plutovg_texture_t* texture)
+  : m_texture(texture)
+{
+  m_surface = plutovg_texture_get_surface(texture);
+  m_Width = plutovg_surface_get_width(m_surface);
+  m_Height = plutovg_surface_get_height(m_surface);
 }
 
 PlutoVG_Renderer::~PlutoVG_Renderer()
 {
   plutovg_destroy(m_context);
+  plutovg_surface_destroy(m_surface);
 }
 
 void PlutoVG_Renderer::save()
@@ -292,10 +304,11 @@ void PlutoVG_Renderer::drawImage(const RenderImage* image, BlendMode blendMode, 
 
   const auto* imageData = reinterpret_cast<const PlutoVG_RenderImage*>(image);
 
+  plutovg_rect(m_context, 0, 0, imageData->m_Width, imageData->m_Height);
   plutovg_set_source_texture(m_context, imageData->m_texture);
   plutovg_set_opacity(m_context, opacity);
   plutovg_set_operator(m_context, ToPlutoVG::convert(blendMode));
-  plutovg_paint(m_context);
+  plutovg_fill(m_context);
 }
 
 void PlutoVG_Renderer::drawImageMesh(const RenderImage* image,
@@ -305,28 +318,92 @@ void PlutoVG_Renderer::drawImageMesh(const RenderImage* image,
   BlendMode blendMode,
   float opacity)
 {
-  if (m_context == nullptr)
+  // if (m_context == nullptr)
+  //   return;
+
+  // // need our vertices and uvs to agree
+  // assert(vertices->count() == uvCoords->count());
+  // // vertices and uvs are arrays of floats, so we need their counts to be
+  // // even, since we treat them as arrays of points
+  // assert((vertices->count() & 1) == 0);
+
+  // // const int vertexCount = vertices->count() >> 1;
+
+  // plutovg_matrix_t matrix;
+  // plutovg_matrix_init_identity(&matrix);
+
+  // // auto uvs = (const plutovg_point_t *)DataRenderBuffer::Cast(uvCoords.get())->vecs();
+
+  // const auto* imageData = reinterpret_cast<const PlutoVG_RenderImage*>(image);
+
+  // plutovg_set_source_texture(m_context, imageData->m_texture);
+  // plutovg_set_opacity(m_context, opacity);
+  // plutovg_set_operator(m_context, ToPlutoVG::convert(blendMode));
+  // plutovg_set_matrix(m_context, &matrix);
+  // plutovg_paint(m_context);
+}
+
+int PlutoVG_Renderer::width() const
+{
+  if (m_surface == nullptr)
+    return 0;
+
+  return plutovg_surface_get_width(m_surface);
+}
+
+int PlutoVG_Renderer::height() const
+{
+  if (m_surface == nullptr)
+    return 0;
+
+  return plutovg_surface_get_height(m_surface);
+}
+
+int PlutoVG_Renderer::stride() const
+{
+  if (m_surface == nullptr)
+    return 0;
+
+  return plutovg_surface_get_stride(m_surface);
+}
+
+uint8_t* PlutoVG_Renderer::data() const
+{
+  if (m_surface == nullptr)
+    return nullptr;
+
+  return plutovg_surface_get_data(m_surface);
+}
+
+void PlutoVG_Renderer::writePNG(const char* filename) const
+{
+  if (m_surface == nullptr)
     return;
 
-  // need our vertices and uvs to agree
-  assert(vertices->count() == uvCoords->count());
-  // vertices and uvs are arrays of floats, so we need their counts to be
-  // even, since we treat them as arrays of points
-  assert((vertices->count() & 1) == 0);
+  const uint8_t* data = this->data();
+  const int width = this->width();
+  const int height = this->height();
+  const int stride = this->stride();
 
-  // const int vertexCount = vertices->count() >> 1;
+  auto* image = static_cast<uint8_t*>(calloc(1, static_cast<size_t>(stride) * height));
 
-  plutovg_matrix_t matrix;
-  plutovg_matrix_init_identity(&matrix);
+  for (int y = 0; y < height; y++)
+  {
+    const auto* src = reinterpret_cast<const uint32_t*>(data + stride * y);
+    auto* dst = reinterpret_cast<uint32_t*>(image + stride * y);
+    for (int x = 0; x < width; x++)
+    {
+      const uint32_t a = src[x] >> 24;
+      const uint32_t r = src[x] >> 16 & 255;
+      const uint32_t g = src[x] >> 8 & 255;
+      const uint32_t b = src[x] >> 0 & 255;
 
-  // auto uvs = (const plutovg_point_t *)DataRenderBuffer::Cast(uvCoords.get())->vecs();
+      dst[x] = (a << 24) | (b << 16) | (g << 8) | r;
+    }
+  }
 
-  const auto* imageData = reinterpret_cast<const PlutoVG_RenderImage*>(image);
-
-  plutovg_set_source_texture(m_context, imageData->m_texture);
-  plutovg_set_opacity(m_context, opacity);
-  plutovg_set_operator(m_context, ToPlutoVG::convert(blendMode));
-  plutovg_set_matrix(m_context, &matrix);
+  stbi_write_png(filename, width, height, 4, image, stride);
+  free(image);
 }
 
 rcp<RenderBuffer> PlutonRiver_Factory::makeBufferU16(Span<const uint16_t> data)
@@ -410,14 +487,33 @@ std::unique_ptr<RenderPaint> PlutonRiver_Factory::makeRenderPaint()
   return std::make_unique<PlutoVG_RenderPaint>();
 }
 
-std::unique_ptr<RenderImage> PlutonRiver_Factory::decodeImage(Span<const uint8_t> data)
+std::unique_ptr<RenderImage> PlutonRiver_Factory::decodeImage(Span<const uint8_t> raw)
 {
-  int x, y, n;
-  stbi_uc* image = stbi_load_from_memory(data.data(), data.size(), &x, &y, &n, 4);
-  if (image == nullptr)
+  int width, height, n;
+  stbi_uc* data = stbi_load_from_memory(raw.data(), raw.size(), &width, &height, &n, 4);
+  if (data == nullptr)
     return nullptr;
 
-  plutovg_surface_t* surface = plutovg_surface_create_for_data(image, x, y, n);
+  const int stride = width * n;
+  auto* image = static_cast<unsigned char*>(calloc(1, static_cast<size_t>(stride) * height));
+
+  for (int y = 0; y < height; y++)
+  {
+    const auto* src = reinterpret_cast<uint32_t*>(data + stride * y);
+    auto* dst = reinterpret_cast<uint32_t*>(image + stride * y);
+
+    for (int x = 0; x < width; x++)
+    {
+      const uint32_t r = src[x] >> 0 & 255;
+      const uint32_t g = src[x] >> 8 & 255;
+      const uint32_t b = src[x] >> 16 & 255;
+      const uint32_t a = src[x] >> 24;
+
+      dst[x] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+  }
+
+  plutovg_surface_t* surface = plutovg_surface_create_for_data(image, width, height, stride);
 
   return std::make_unique<PlutoVG_RenderImage>(surface);
 }

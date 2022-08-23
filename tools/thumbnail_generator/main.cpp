@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
   artboard->draw(&renderer);
   renderer.restore();
 
-  plutovg_surface_write_to_png(surface, outPath);
+  renderer.writePNG(outPath);
   plutovg_surface_destroy(surface);
 
   return 0;

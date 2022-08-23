@@ -27,12 +27,15 @@ namespace rive
   {
   protected:
     plutovg_t* m_context;
+    plutovg_surface_t* m_surface;
 
   public:
     PlutoVG_Renderer(plutovg_surface_t* surface)
       : m_context(plutovg_create(surface))
+      , m_surface(plutovg_surface_reference(surface))
     {
     }
+
     ~PlutoVG_Renderer() override;
 
     void save() override;
@@ -47,6 +50,13 @@ namespace rive
       rcp<RenderBuffer> indices_u16,
       BlendMode,
       float opacity) override;
+
+    int width() const;
+    int height() const;
+    int stride() const;
+    uint8_t* data() const;
+
+    void writePNG(const char* filename) const;
   };
 } // namespace rive
 
